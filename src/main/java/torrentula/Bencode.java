@@ -1,6 +1,25 @@
+/*
+ * Copyright (C) 2020 Devashish Jaiswal.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package torrentula;
 
-import java.io.*;
+import java.io.BufferedInputStream;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -15,9 +34,9 @@ public class Bencode {
     enum Type {
         UNKNOWN,
         INTEGER,
-        STRING,
         LIST,
-        DICTIONARY
+        DICTIONARY,
+        BYTE_ARRAY
     }
 
     @SuppressWarnings("unchecked")
@@ -30,12 +49,12 @@ public class Bencode {
             m_value = value;
             if (value instanceof List)
                 m_type = Type.LIST;
-            else if (value instanceof String)
-                m_type = Type.STRING;
             else if (value instanceof Map)
                 m_type = Type.DICTIONARY;
             else if (value instanceof Long)
                 m_type = Type.INTEGER;
+            else if (value instanceof byte[])
+                m_type = Type.BYTE_ARRAY;
             else throw new RuntimeException("Invalid value!");
         }
 
@@ -57,8 +76,8 @@ public class Bencode {
 
         public String as_string ()
         {
-            validate_type_or_throw(Type.STRING);
-            return (String) m_value;
+            validate_type_or_throw(Type.BYTE_ARRAY);
+            return new String((byte[]) m_value, StandardCharsets.UTF_8);
         }
 
         public Map<String, Element> as_dictionary ()
@@ -73,38 +92,41 @@ public class Bencode {
             return (List<Element>) m_value;
         }
 
+        public byte[] as_byte_array () {
+            validate_type_or_throw(Type.BYTE_ARRAY);
+            return (byte[]) m_value;
+        }
+
         public static Element wrap (final Object value)
         {
             return new Element(value);
         }
     }
 
-    private final InputStream m_stream;
-    private final BufferedReader m_reader;
+    private final BufferedInputStream m_reader;
 
     private Bencode (final InputStream stream)
     {
-        m_stream = stream;
-        m_reader = new BufferedReader(new InputStreamReader(m_stream, StandardCharsets.UTF_8));
+        m_reader = new BufferedInputStream(stream);
     }
 
-    private char peek_char () throws IOException
+    private byte peek () throws IOException
     {
         m_reader.mark(1);
-        char next = read_char();
+        int next = read();
         m_reader.reset();
-        return next;
+        return (byte)next;
     }
 
-    private char read_char () throws IOException
+    private byte read () throws IOException
     {
         int next = m_reader.read();
         if (next == -1)
             throw new IOException("Attempted reading beyond EOF!");
-        return (char) next;
+        return (byte)next;
     }
 
-    private boolean is_digit (final char c)
+    private boolean is_digit (final byte c)
     {
         return (c >= '0' && c <= '9');
     }
@@ -112,40 +134,40 @@ public class Bencode {
     private Element parse_positive_integer () throws IOException
     {
         final StringBuilder builder = new StringBuilder();
-        while (is_digit(peek_char()))
-            builder.append(read_char());
+        while (is_digit(peek()))
+            builder.append((char)read());
         return Element.wrap(Long.parseLong(builder.toString()));
     }
 
-    private Element parse_string () throws IOException
+    private Element parse_byte_array () throws IOException
     {
-        final StringBuilder builder = new StringBuilder();
         int length = (int)parse_positive_integer().as_integer();
+        byte[] bytes = new byte[length];
 
-        if (read_char() != ':')
-            throw new RuntimeException("Element not string!");
-        while (length-- > 0)
-            builder.append(read_char());
-        return Element.wrap(builder.toString());
+        if (read() != ':')
+            throw new RuntimeException("Element not byte array!");
+        for (int i = 0; i < length; i++)
+            bytes[i] = read();
+        return Element.wrap(bytes);
     }
 
     private Element parse_integer () throws IOException
     {
         var exception = new RuntimeException("Element not integer!");
-        if (read_char() != 'i') throw exception;
-        boolean is_negative = peek_char() == '-';
+        if (read() != 'i') throw exception;
+        boolean is_negative = peek() == '-';
         // Consume the sign.
-        if (is_negative) read_char();
+        if (is_negative) read();
         final long absolute = parse_positive_integer().as_integer();
         final Element int_element = Element.wrap(is_negative ? -absolute : absolute);
-        if (read_char() != 'e') throw exception;
+        if (read() != 'e') throw exception;
         return int_element;
     }
 
     private Type get_next_element_type () throws IOException
     {
-        final char next = peek_char();
-        if (is_digit(next)) return Type.STRING;
+        final byte next = peek();
+        if (is_digit(next)) return Type.BYTE_ARRAY;
         return switch (next) {
             case 'l' -> Type.LIST;
             case 'd' -> Type.DICTIONARY;
@@ -159,7 +181,7 @@ public class Bencode {
         final Type type = get_next_element_type();
         return switch (type) {
             case LIST -> parse_list();
-            case STRING -> parse_string();
+            case BYTE_ARRAY -> parse_byte_array();
             case DICTIONARY -> parse_dictionary();
             case INTEGER -> parse_integer();
             default -> throw new RuntimeException("Couldn't parse `" + type + "`!");
@@ -169,14 +191,14 @@ public class Bencode {
     private Element parse_list () throws IOException
     {
         final List<Element> list = new ArrayList<>();
-        if (read_char() != 'l')
+        if (read() != 'l')
             throw new RuntimeException("Element not list!");
-        while (peek_char() != 'e') {
+        while (peek() != 'e') {
             final var next_element = parse_next_element();
             list.add(next_element);
         }
         // Consume the 'e'.
-        read_char();
+        read();
         return Element.wrap(list);
     }
 
@@ -184,16 +206,16 @@ public class Bencode {
     {
         var exception = new RuntimeException("Element not map!");
         final Map<String, Element> map = new HashMap<>();
-        if (read_char() != 'd')
+        if (read() != 'd')
             throw exception;
-        while (peek_char() != 'e') {
-            final String key = parse_string().as_string();
+        while (peek() != 'e') {
+            final String key = parse_byte_array().as_string();
             if (key.isEmpty())
                 throw new RuntimeException("Empty keys not allowed in dictionary!");
             map.put(key, parse_next_element());
         }
         // Consume the 'e'.
-        read_char();
+        read();
         return Element.wrap(map);
     }
 
