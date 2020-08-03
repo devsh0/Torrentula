@@ -26,6 +26,17 @@ public class Metainfo {
         {
             return m_length;
         }
+
+        String to_string (int padding)
+        {
+            String indent = " ".repeat(padding);
+            var builder = new StringBuilder();
+            builder.append(indent).append("{\n")
+                    .append(indent).append("\tpath: ").append(m_full_path.toString()).append("\n")
+                    .append(indent).append("\tsize: ").append(m_length).append(" bytes").append("\n")
+                    .append(indent).append("}\n");
+            return builder.toString();
+        }
     }
 
     enum Mode {
@@ -34,11 +45,11 @@ public class Metainfo {
     }
 
     private final String m_tracker_url;
-    private final String m_name;
+    private final String m_parent_directory_or_file_name;
     private final long m_piece_length;
     private final List<byte[]> m_piece_checksums;
     private final Mode m_mode;
-    private final List<Fileinfo> m_files;
+    private final List<Fileinfo> m_fileinfo_list;
 
     Metainfo (
             final String tracker_url,
@@ -49,11 +60,11 @@ public class Metainfo {
             final List<Fileinfo> files)
     {
         m_tracker_url = tracker_url;
-        m_name = name;
+        m_parent_directory_or_file_name = name;
         m_piece_length = piece_length;
         m_piece_checksums = piece_checksums;
         m_mode = mode;
-        m_files = files;
+        m_fileinfo_list = files;
     }
 
     public String tracker_url ()
@@ -63,7 +74,7 @@ public class Metainfo {
 
     public Path parent_directory ()
     {
-        return m_mode == Mode.SINGLE_FILE ? Paths.get(".") : Paths.get(m_name);
+        return m_mode == Mode.SINGLE_FILE ? Paths.get(System.getProperty("user.dir")) : Paths.get(m_parent_directory_or_file_name);
     }
 
     public long piece_length ()
@@ -71,7 +82,7 @@ public class Metainfo {
         return m_piece_length;
     }
 
-    public byte[] piece_checksum_at (final int index)
+    public byte[] checksum_at (final int index)
     {
         return m_piece_checksums.get(index);
     }
@@ -81,14 +92,42 @@ public class Metainfo {
         return m_mode;
     }
 
+    public int piece_count ()
+    {
+        return m_piece_checksums.size();
+    }
+
     public Fileinfo file_info_at (final int index)
     {
-        return m_files.get(index);
+        return m_fileinfo_list.get(index);
     }
 
     public int file_count ()
     {
-        return m_files.size();
+        return m_fileinfo_list.size();
+    }
+
+    public String to_string (int padding)
+    {
+        var indent = " ".repeat(padding);
+        var double_indent = padding == 0 ? " ".repeat(4) : indent.repeat(2);
+        var builder = new StringBuilder();
+        builder.append(indent).append("{\n")
+                .append(double_indent).append("tracker-url: ").append(m_tracker_url).append("\n")
+                .append(double_indent).append("parent-directory: ").append(parent_directory()).append("\n")
+                .append(double_indent).append("piece-length: ").append(m_piece_length).append(" bytes\n")
+                .append(double_indent).append("piece-count: ").append(m_piece_checksums.size()).append("\n")
+                .append(double_indent).append("mode: ").append(m_mode).append("\n")
+                .append(double_indent).append("files: ").append("\n");
+        for (var fileinfo : m_fileinfo_list)
+            builder.append(fileinfo.to_string(4 + double_indent.length()));
+        builder.append(indent).append("}");
+        return builder.toString();
+    }
+
+    public String to_string ()
+    {
+        return to_string(0);
     }
 
     static class Builder {

@@ -103,26 +103,41 @@ public class Bencode {
         }
     }
 
-    private final BufferedInputStream m_reader;
+    private final BufferedInputStream m_stream;
 
     private Bencode (final InputStream stream)
     {
-        m_reader = new BufferedInputStream(stream);
+        m_stream = new BufferedInputStream(stream);
+    }
+
+    private void die (final String message)
+    {
+        try {
+            var builder = new StringBuilder();
+            var limit = Math.max(m_stream.available(), 20);
+            for (int i = 0; i < limit; i++)
+                builder.append(read());
+            final var vicinity = builder.toString();
+            System.err.println("Failed before reaching: " + vicinity);
+            throw new RuntimeException(message);
+        } catch (IOException ioe) {
+            // ignore
+        }
     }
 
     private byte peek () throws IOException
     {
-        m_reader.mark(1);
+        m_stream.mark(1);
         int next = read();
-        m_reader.reset();
+        m_stream.reset();
         return (byte)next;
     }
 
     private byte read () throws IOException
     {
-        int next = m_reader.read();
+        int next = m_stream.read();
         if (next == -1)
-            throw new IOException("Attempted reading beyond EOF!");
+            die("Attempted reading beyond EOF!");
         return (byte)next;
     }
 
@@ -143,9 +158,7 @@ public class Bencode {
     {
         int length = (int)parse_positive_integer().as_integer();
         byte[] bytes = new byte[length];
-
-        if (read() != ':')
-            throw new RuntimeException("Element not byte array!");
+        if (read() != ':') die("Element not byte array!");
         for (int i = 0; i < length; i++)
             bytes[i] = read();
         return Element.wrap(bytes);
@@ -153,14 +166,13 @@ public class Bencode {
 
     private Element parse_integer () throws IOException
     {
-        var exception = new RuntimeException("Element not integer!");
-        if (read() != 'i') throw exception;
+        if (read() != 'i') die("Element not integer!");
         boolean is_negative = peek() == '-';
         // Consume the sign.
         if (is_negative) read();
         final long absolute = parse_positive_integer().as_integer();
         final Element int_element = Element.wrap(is_negative ? -absolute : absolute);
-        if (read() != 'e') throw exception;
+        if (read() != 'e') die("Element not integer!");
         return int_element;
     }
 
@@ -179,20 +191,21 @@ public class Bencode {
     private Element parse_next_element () throws IOException
     {
         final Type type = get_next_element_type();
-        return switch (type) {
-            case LIST -> parse_list();
-            case BYTE_ARRAY -> parse_byte_array();
-            case DICTIONARY -> parse_dictionary();
-            case INTEGER -> parse_integer();
-            default -> throw new RuntimeException("Couldn't parse `" + type + "`!");
-        };
+        switch (type) {
+            case LIST:  return parse_list();
+            case BYTE_ARRAY: return parse_byte_array();
+            case DICTIONARY: return parse_dictionary();
+            case INTEGER: return parse_integer();
+            default: die("Couldn't parse `" + type + "`!");
+        }
+        // Won't ever reach here.
+        return null;
     }
 
     private Element parse_list () throws IOException
     {
         final List<Element> list = new ArrayList<>();
-        if (read() != 'l')
-            throw new RuntimeException("Element not list!");
+        if (read() != 'l') die("Element not list!");
         while (peek() != 'e') {
             final var next_element = parse_next_element();
             list.add(next_element);
@@ -204,14 +217,11 @@ public class Bencode {
 
     private Element parse_dictionary () throws IOException
     {
-        var exception = new RuntimeException("Element not map!");
         final Map<String, Element> map = new HashMap<>();
-        if (read() != 'd')
-            throw exception;
+        if (read() != 'd') die("Element not map!");
         while (peek() != 'e') {
             final String key = parse_byte_array().as_string();
-            if (key.isEmpty())
-                throw new RuntimeException("Empty keys not allowed in dictionary!");
+            if (key.isEmpty()) die("Empty keys not allowed in dictionary!");
             map.put(key, parse_next_element());
         }
         // Consume the 'e'.
@@ -221,7 +231,7 @@ public class Bencode {
 
     private void dispose () {
         try {
-            m_reader.close();
+            m_stream.close();
         } catch (IOException ioe) {
             System.err.println("Couldn't close reader!");
             throw new RuntimeException(ioe);
