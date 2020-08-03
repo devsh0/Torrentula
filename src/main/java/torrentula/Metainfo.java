@@ -1,0 +1,187 @@
+package torrentula;
+
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.*;
+
+public class Metainfo {
+    public static class Fileinfo {
+        private final Path m_full_path;
+        private final long m_length;
+
+        Fileinfo (final long length, String... path_pieces)
+        {
+            if (path_pieces.length < 1)
+                throw new RuntimeException("Path has zero elements!");
+            m_length = length;
+            m_full_path = Paths.get(path_pieces[0], Arrays.copyOfRange(path_pieces, 1, path_pieces.length));
+        }
+
+        public Path get_path ()
+        {
+            return m_full_path;
+        }
+
+        public long get_size ()
+        {
+            return m_length;
+        }
+    }
+
+    enum Mode {
+        SINGLE_FILE,
+        MULTIPLE_FILE
+    }
+
+    private final String m_tracker_url;
+    private final String m_name;
+    private final long m_piece_length;
+    private final List<byte[]> m_piece_checksums;
+    private final Mode m_mode;
+    private final List<Fileinfo> m_files;
+
+    Metainfo (
+            final String tracker_url,
+            final String name,
+            final long piece_length,
+            final List<byte[]> piece_checksums,
+            final Mode mode,
+            final List<Fileinfo> files)
+    {
+        m_tracker_url = tracker_url;
+        m_name = name;
+        m_piece_length = piece_length;
+        m_piece_checksums = piece_checksums;
+        m_mode = mode;
+        m_files = files;
+    }
+
+    public String tracker_url ()
+    {
+        return m_tracker_url;
+    }
+
+    public Path parent_directory ()
+    {
+        return m_mode == Mode.SINGLE_FILE ? Paths.get(".") : Paths.get(m_name);
+    }
+
+    public long piece_length ()
+    {
+        return m_piece_length;
+    }
+
+    public byte[] piece_checksum_at (final int index)
+    {
+        return m_piece_checksums.get(index);
+    }
+
+    public Mode mode ()
+    {
+        return m_mode;
+    }
+
+    public Fileinfo file_info_at (final int index)
+    {
+        return m_files.get(index);
+    }
+
+    public int file_count ()
+    {
+        return m_files.size();
+    }
+
+    static class Builder {
+        private String m_tracker_url;
+        private String m_name;
+        private long m_piece_length;
+        private List<byte[]> m_piece_checksums;
+        private Mode m_mode;
+        private List<Fileinfo> m_files;
+
+
+        public Metainfo build ()
+        {
+            if (m_tracker_url == null || m_tracker_url.isEmpty()
+                    || m_name == null || m_name.isEmpty()
+                    || m_piece_length <= 0
+                    || m_piece_checksums == null || m_piece_checksums.size() == 0
+                    || m_mode == null
+                    || m_files == null || m_files.size() == 0)
+                throw new RuntimeException("Invalid metafile!");
+
+            return new Metainfo(
+                    m_tracker_url,
+                    m_name,
+                    m_piece_length,
+                    m_piece_checksums,
+                    m_mode,
+                    m_files);
+        }
+
+        public Builder set_piece_checksums (final Map<String, Bencode.Element> info)
+        {
+            byte[] bytes = info.get("pieces").as_byte_array();
+            int length = bytes.length;
+            if (length % 20 != 0)
+                throw new RuntimeException("Invalid piece checksum length!");
+            m_piece_checksums = new ArrayList<>(length / 20);
+            int index = 0;
+            while (length > 0) {
+                byte[] temp = new byte[20];
+                System.arraycopy(bytes, index, temp, 0, 20);
+                m_piece_checksums.add(temp);
+                index += 20;
+                length -= 20;
+            }
+            return this;
+        }
+
+        public Builder set_mode (final Map<String, Bencode.Element> info)
+        {
+            if (info.containsKey("length"))
+                m_mode = Mode.SINGLE_FILE;
+            else if (info.containsKey("files"))
+                m_mode = Mode.MULTIPLE_FILE;
+            else throw new RuntimeException("Couldn't guess mode!");
+            return this;
+        }
+
+        public Builder set_files (final Map<String, Bencode.Element> info)
+        {
+            boolean single_file = m_mode == Mode.SINGLE_FILE;
+            if (single_file) {
+                m_files = new ArrayList<>();
+                m_files.add(new Fileinfo(info.get("length").as_integer(), m_name));
+                return this;
+            }
+
+            var file_list = info.get("files").as_list();
+            m_files = new ArrayList<>(file_list.size());
+            for (var file_element : file_list) {
+                var file_dictionary = file_element.as_dictionary();
+                var paths = file_dictionary.get("path").as_list();
+                var path_pieces = new String[paths.size()];
+                for (int i = 0; i < path_pieces.length; i++)
+                    path_pieces[i] = paths.get(i).as_string();
+                var file = new Fileinfo(file_dictionary.get("length").as_integer(), path_pieces);
+                m_files.add(file);
+            }
+            return this;
+        }
+    }
+
+    public static Metainfo from (final Map<String, Bencode.Element> metainfo)
+    {
+        Builder builder = new Builder();
+        var info = metainfo.get("info").as_dictionary();
+
+        builder.m_tracker_url = metainfo.get("announce").as_string();
+        builder.m_name = info.get("name").as_string();
+        builder.m_piece_length = info.get("piece length").as_integer();
+        return builder.set_piece_checksums(info)
+                .set_mode(info)
+                .set_files(info)
+                .build();
+    }
+}
