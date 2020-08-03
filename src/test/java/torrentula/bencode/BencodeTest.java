@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
-package torrentula;
+package torrentula.bencode;
 
 import org.junit.jupiter.api.Test;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class BencodeTest {

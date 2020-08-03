@@ -1,4 +1,22 @@
+/*
+ * Copyright (C) 2020 Devashish Jaiswal.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package torrentula;
+
+import torrentula.bencode.BencodeElement;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -158,7 +176,7 @@ public class Metainfo {
                     m_files);
         }
 
-        public Builder set_piece_checksums (final Map<String, Bencode.Element> info)
+        public Builder set_piece_checksums (final Map<String, BencodeElement> info)
         {
             byte[] bytes = info.get("pieces").as_byte_array();
             int length = bytes.length;
@@ -176,7 +194,7 @@ public class Metainfo {
             return this;
         }
 
-        public Builder set_mode (final Map<String, Bencode.Element> info)
+        public Builder set_mode (final Map<String, BencodeElement> info)
         {
             if (info.containsKey("length"))
                 m_mode = Mode.SINGLE_FILE;
@@ -186,7 +204,7 @@ public class Metainfo {
             return this;
         }
 
-        public Builder set_files (final Map<String, Bencode.Element> info)
+        public Builder set_files (final Map<String, BencodeElement> info)
         {
             boolean single_file = m_mode == Mode.SINGLE_FILE;
             if (single_file) {
@@ -210,7 +228,7 @@ public class Metainfo {
         }
     }
 
-    public static Metainfo from (final Map<String, Bencode.Element> metainfo)
+    public static Metainfo from (final Map<String, BencodeElement> metainfo)
     {
         Builder builder = new Builder();
         var info = metainfo.get("info").as_dictionary();
