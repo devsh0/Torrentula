@@ -16,10 +16,12 @@
 
 package torrentula;
 
-import torrentula.bencode.BencodeElement;
+import torrentula.bencode.Element;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.*;
 
 public class Metainfo {
@@ -62,6 +64,7 @@ public class Metainfo {
         MULTIPLE_FILE
     }
 
+    private final Map<String, Element> m_source;
     private final String m_tracker_url;
     private final String m_parent_directory_or_file_name;
     private final long m_piece_length;
@@ -69,7 +72,10 @@ public class Metainfo {
     private final Mode m_mode;
     private final List<Fileinfo> m_fileinfo_list;
 
+    private final MessageDigest m_hasher;
+
     Metainfo (
+            final Map<String, Element> source,
             final String tracker_url,
             final String name,
             final long piece_length,
@@ -77,12 +83,19 @@ public class Metainfo {
             final Mode mode,
             final List<Fileinfo> files)
     {
+        m_source = source;
         m_tracker_url = tracker_url;
         m_parent_directory_or_file_name = name;
         m_piece_length = piece_length;
         m_piece_checksums = piece_checksums;
         m_mode = mode;
         m_fileinfo_list = files;
+
+        try {
+            m_hasher = MessageDigest.getInstance("SHA-1");
+        } catch (NoSuchAlgorithmException exc) {
+            throw new  RuntimeException(exc);
+        }
     }
 
     public String tracker_url ()
@@ -125,6 +138,11 @@ public class Metainfo {
         return m_fileinfo_list.size();
     }
 
+    public byte[] get_info_hash ()
+    {
+        return m_hasher.digest(m_source.get("info").serialize());
+    }
+
     public String to_string (int padding)
     {
         var indent = " ".repeat(padding);
@@ -149,6 +167,7 @@ public class Metainfo {
     }
 
     static class Builder {
+        private Map<String, Element> m_source;
         private String m_tracker_url;
         private String m_name;
         private long m_piece_length;
@@ -159,7 +178,8 @@ public class Metainfo {
 
         public Metainfo build ()
         {
-            if (m_tracker_url == null || m_tracker_url.isEmpty()
+            if (m_source == null
+                    || m_tracker_url == null || m_tracker_url.isEmpty()
                     || m_name == null || m_name.isEmpty()
                     || m_piece_length <= 0
                     || m_piece_checksums == null || m_piece_checksums.size() == 0
@@ -168,6 +188,7 @@ public class Metainfo {
                 throw new RuntimeException("Invalid metafile!");
 
             return new Metainfo(
+                    m_source,
                     m_tracker_url,
                     m_name,
                     m_piece_length,
@@ -176,9 +197,9 @@ public class Metainfo {
                     m_files);
         }
 
-        public Builder set_piece_checksums (final Map<String, BencodeElement> info)
+        public Builder set_piece_checksums (final Map<String, Element> info)
         {
-            byte[] bytes = info.get("pieces").as_byte_array();
+            byte[] bytes = info.get("pieces").as_byte_string();
             int length = bytes.length;
             if (length % 20 != 0)
                 throw new RuntimeException("Invalid piece checksum length!");
@@ -194,7 +215,7 @@ public class Metainfo {
             return this;
         }
 
-        public Builder set_mode (final Map<String, BencodeElement> info)
+        public Builder set_mode (final Map<String, Element> info)
         {
             if (info.containsKey("length"))
                 m_mode = Mode.SINGLE_FILE;
@@ -204,7 +225,7 @@ public class Metainfo {
             return this;
         }
 
-        public Builder set_files (final Map<String, BencodeElement> info)
+        public Builder set_files (final Map<String, Element> info)
         {
             boolean single_file = m_mode == Mode.SINGLE_FILE;
             if (single_file) {
@@ -228,11 +249,12 @@ public class Metainfo {
         }
     }
 
-    public static Metainfo from (final Map<String, BencodeElement> metainfo)
+    public static Metainfo from (final Map<String, Element> metainfo)
     {
         Builder builder = new Builder();
         var info = metainfo.get("info").as_dictionary();
 
+        builder.m_source = metainfo;
         builder.m_tracker_url = metainfo.get("announce").as_string();
         builder.m_name = info.get("name").as_string();
         builder.m_piece_length = info.get("piece length").as_integer();
