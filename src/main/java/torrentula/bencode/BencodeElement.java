@@ -11,15 +11,15 @@ public class BencodeElement {
         INTEGER,
         LIST,
         DICTIONARY,
-        BYTE_ARRAY
+        BYTE_STRING
     }
     
     private final Object m_value;
     private final Type m_type;
+    private final long m_size;
 
-    private BencodeElement (final Object value)
+    private BencodeElement (final Object value, final long size)
     {
-        m_value = value;
         if (value instanceof List)
             m_type = Type.LIST;
         else if (value instanceof Map)
@@ -27,11 +27,14 @@ public class BencodeElement {
         else if (value instanceof Long)
             m_type = Type.INTEGER;
         else if (value instanceof byte[])
-            m_type = Type.BYTE_ARRAY;
+            m_type = Type.BYTE_STRING;
         else throw new RuntimeException("Invalid value!");
+
+        m_value = value;
+        m_size = size;
     }
 
-    public Type get_type ()
+    public Type type ()
     {
         return m_type;
     }
@@ -49,7 +52,7 @@ public class BencodeElement {
 
     public String as_string ()
     {
-        validate_type_or_throw(Type.BYTE_ARRAY);
+        validate_type_or_throw(Type.BYTE_STRING);
         return new String((byte[]) m_value, StandardCharsets.UTF_8);
     }
 
@@ -65,13 +68,18 @@ public class BencodeElement {
         return (List<BencodeElement>) m_value;
     }
 
-    public byte[] as_byte_array () {
-        validate_type_or_throw(Type.BYTE_ARRAY);
+    public byte[] as_byte_string () {
+        validate_type_or_throw(Type.BYTE_STRING);
         return (byte[]) m_value;
     }
 
-    public static BencodeElement wrap (final Object value)
+    public long size ()
     {
-        return new BencodeElement(value);
+        return m_size;
+    }
+
+    public static BencodeElement wrap (final Object value, final long size)
+    {
+        return new BencodeElement(value, size);
     }
 }

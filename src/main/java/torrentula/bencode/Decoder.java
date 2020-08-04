@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 
 final class Decoder {
+    private long m_offset = 0;
     private final BufferedInputStream m_stream;
 
     Decoder (final InputStream stream)
@@ -60,6 +61,7 @@ final class Decoder {
         int next = m_stream.read();
         if (next == -1)
             die("Attempted reading beyond EOF!");
+        m_offset++;
         return (byte)next;
     }
 
@@ -68,40 +70,43 @@ final class Decoder {
         return (c >= '0' && c <= '9');
     }
 
-    private BencodeElement parse_positive_integer () throws IOException
+    private long parse_positive_integer () throws IOException
     {
         final StringBuilder builder = new StringBuilder();
         while (is_digit(peek()))
             builder.append((char)read());
-        return BencodeElement.wrap(Long.parseLong(builder.toString()));
+        return Long.parseLong(builder.toString());
     }
 
-    private BencodeElement parse_byte_array () throws IOException
+    private BencodeElement parse_byte_string () throws IOException
     {
-        int length = (int)parse_positive_integer().as_integer();
+        long start = offset();
+        int length = (int)parse_positive_integer();
         byte[] bytes = new byte[length];
-        if (read() != ':') die("Element not byte array!");
+        if (read() != ':') die("Element not byte string!");
         for (int i = 0; i < length; i++)
             bytes[i] = read();
-        return BencodeElement.wrap(bytes);
+        long size = offset() - start;
+        return BencodeElement.wrap(bytes, size);
     }
 
     private BencodeElement parse_integer () throws IOException
     {
+        long start = offset();
         if (read() != 'i') die("Element not integer!");
         boolean is_negative = peek() == '-';
         // Consume the sign.
         if (is_negative) read();
-        final long absolute = parse_positive_integer().as_integer();
-        final BencodeElement int_element = BencodeElement.wrap(is_negative ? -absolute : absolute);
+        final long absolute = parse_positive_integer();
         if (read() != 'e') die("Element not integer!");
-        return int_element;
+        long size = offset() - start;
+        return BencodeElement.wrap(is_negative ? -absolute : absolute, size);
     }
 
     private BencodeElement.Type get_next_element_type () throws IOException
     {
         final byte next = peek();
-        if (is_digit(next)) return BencodeElement.Type.BYTE_ARRAY;
+        if (is_digit(next)) return BencodeElement.Type.BYTE_STRING;
         return switch (next) {
             case 'l' -> BencodeElement.Type.LIST;
             case 'd' -> BencodeElement.Type.DICTIONARY;
@@ -115,7 +120,7 @@ final class Decoder {
         final BencodeElement.Type type= get_next_element_type();
         switch (type) {
             case LIST:  return parse_list();
-            case BYTE_ARRAY: return parse_byte_array();
+            case BYTE_STRING: return parse_byte_string();
             case DICTIONARY: return parse_dictionary();
             case INTEGER: return parse_integer();
             default: die("Couldn't parse `" + type + "`!");
@@ -126,6 +131,7 @@ final class Decoder {
 
     private BencodeElement parse_list () throws IOException
     {
+        long start = offset();
         final List<BencodeElement> list = new ArrayList<>();
         if (read() != 'l') die("Element not list!");
         while (peek() != 'e') {
@@ -134,21 +140,29 @@ final class Decoder {
         }
         // Consume the 'e'.
         read();
-        return BencodeElement.wrap(list);
+        long size = offset() - start;
+        return BencodeElement.wrap(list, size);
     }
 
     private BencodeElement parse_dictionary () throws IOException
     {
+        long start = offset();
         final Map<String, BencodeElement> map = new HashMap<>();
         if (read() != 'd') die("Element not map!");
         while (peek() != 'e') {
-            final String key = parse_byte_array().as_string();
+            final String key = parse_byte_string().as_string();
             if (key.isEmpty()) die("Empty keys not allowed in dictionary!");
             map.put(key, parse_next_element());
         }
         // Consume the 'e'.
         read();
-        return BencodeElement.wrap(map);
+        long size = offset() - start;
+        return BencodeElement.wrap(map, size);
+    }
+
+    private long offset ()
+    {
+        return m_offset;
     }
 
     private void dispose () {
