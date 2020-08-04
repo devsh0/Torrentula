@@ -25,7 +25,7 @@ class BencodeTest {
     // Pretty naive test. Serves the purpose for now.
     void test_bencode_parser () {
         var string = "d4:dictd11:dict-item-14:test11:dict-item-25:thinge4:listl11:list-item-111:list-item-2e6:numberi123456e6:string5:valuee";
-        var top_level = Bencode.parse(string).as_dictionary();
+        var top_level = Bencode.decode(string).as_dictionary();
 
         var dictionary = top_level.get("dict").as_dictionary();
         assertEquals("test", dictionary.get("dict-item-1").as_string());
