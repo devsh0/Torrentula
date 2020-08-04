@@ -24,11 +24,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-final class Decoder {
-    private long m_offset = 0;
+final class Deserializer {
+    private int m_offset = 0;
     private final BufferedInputStream m_stream;
 
-    Decoder (final InputStream stream)
+    Deserializer (final InputStream stream)
     {
         m_stream = new BufferedInputStream(stream);
     }
@@ -53,7 +53,7 @@ final class Decoder {
         m_stream.mark(1);
         int next = read();
         m_stream.reset();
-        return (byte)next;
+        return (byte) next;
     }
 
     private byte read () throws IOException
@@ -62,7 +62,7 @@ final class Decoder {
         if (next == -1)
             die("Attempted reading beyond EOF!");
         m_offset++;
-        return (byte)next;
+        return (byte) next;
     }
 
     private boolean is_digit (final byte c)
@@ -74,65 +74,70 @@ final class Decoder {
     {
         final StringBuilder builder = new StringBuilder();
         while (is_digit(peek()))
-            builder.append((char)read());
+            builder.append((char) read());
         return Long.parseLong(builder.toString());
     }
 
-    private BencodeElement parse_byte_string () throws IOException
+    private Element parse_byte_string () throws IOException
     {
-        long start = offset();
-        int length = (int)parse_positive_integer();
+        var start = offset();
+        int length = (int) parse_positive_integer();
         byte[] bytes = new byte[length];
         if (read() != ':') die("Element not byte string!");
         for (int i = 0; i < length; i++)
             bytes[i] = read();
-        long size = offset() - start;
-        return BencodeElement.wrap(bytes, size);
+        var size = offset() - start;
+        return Element.wrap(bytes, size);
     }
 
-    private BencodeElement parse_integer () throws IOException
+    private Element parse_integer () throws IOException
     {
-        long start = offset();
+        var start = offset();
         if (read() != 'i') die("Element not integer!");
         boolean is_negative = peek() == '-';
         // Consume the sign.
         if (is_negative) read();
         final long absolute = parse_positive_integer();
         if (read() != 'e') die("Element not integer!");
-        long size = offset() - start;
-        return BencodeElement.wrap(is_negative ? -absolute : absolute, size);
+        var size = offset() - start;
+        return Element.wrap(is_negative ? -absolute : absolute, size);
     }
 
-    private BencodeElement.Type get_next_element_type () throws IOException
+    private Element.Type get_next_element_type () throws IOException
     {
         final byte next = peek();
-        if (is_digit(next)) return BencodeElement.Type.BYTE_STRING;
+        if (is_digit(next)) return Element.Type.BYTE_STRING;
         return switch (next) {
-            case 'l' -> BencodeElement.Type.LIST;
-            case 'd' -> BencodeElement.Type.DICTIONARY;
-            case 'i' -> BencodeElement.Type.INTEGER;
-            default -> BencodeElement.Type.UNKNOWN;
+            case 'l' -> Element.Type.LIST;
+            case 'd' -> Element.Type.DICTIONARY;
+            case 'i' -> Element.Type.INTEGER;
+            default -> Element.Type.UNKNOWN;
         };
     }
 
-    private BencodeElement parse_next_element () throws IOException
+    private Element parse_next_element () throws IOException
     {
-        final BencodeElement.Type type= get_next_element_type();
+        final Element.Type type = get_next_element_type();
         switch (type) {
-            case LIST:  return parse_list();
-            case BYTE_STRING: return parse_byte_string();
-            case DICTIONARY: return parse_dictionary();
-            case INTEGER: return parse_integer();
-            default: die("Couldn't parse `" + type + "`!");
+            case LIST:
+                return parse_list();
+            case BYTE_STRING:
+                return parse_byte_string();
+            case DICTIONARY:
+                return parse_dictionary();
+            case INTEGER:
+                return parse_integer();
+            default:
+                die("Couldn't parse `" + type + "`!");
         }
         // Won't ever reach here.
         return null;
     }
 
-    private BencodeElement parse_list () throws IOException
+    private Element parse_list () throws IOException
     {
-        long start = offset();
-        final List<BencodeElement> list = new ArrayList<>();
+        var start = offset();
+        final List<Element> list = new ArrayList<>();
         if (read() != 'l') die("Element not list!");
         while (peek() != 'e') {
             final var next_element = parse_next_element();
@@ -140,14 +145,14 @@ final class Decoder {
         }
         // Consume the 'e'.
         read();
-        long size = offset() - start;
-        return BencodeElement.wrap(list, size);
+        var size = offset() - start;
+        return Element.wrap(list, size);
     }
 
-    private BencodeElement parse_dictionary () throws IOException
+    private Element parse_dictionary () throws IOException
     {
-        long start = offset();
-        final Map<String, BencodeElement> map = new HashMap<>();
+        var start = offset();
+        final Map<String, Element> map = new HashMap<>();
         if (read() != 'd') die("Element not map!");
         while (peek() != 'e') {
             final String key = parse_byte_string().as_string();
@@ -156,16 +161,17 @@ final class Decoder {
         }
         // Consume the 'e'.
         read();
-        long size = offset() - start;
-        return BencodeElement.wrap(map, size);
+        var size = offset() - start;
+        return Element.wrap(map, size);
     }
 
-    private long offset ()
+    private int offset ()
     {
         return m_offset;
     }
 
-    private void dispose () {
+    private void dispose ()
+    {
         try {
             m_stream.close();
         } catch (IOException ioe) {
@@ -174,7 +180,7 @@ final class Decoder {
         }
     }
 
-    BencodeElement decode ()
+    Element decode ()
     {
         try {
             return parse_next_element();
