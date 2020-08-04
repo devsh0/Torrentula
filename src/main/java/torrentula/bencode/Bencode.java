@@ -16,29 +16,37 @@
 
 package torrentula.bencode;
 
-import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 
 public class Bencode {
-
-
-    public static BencodeElement decode (final String data)
+    private Bencode ()
     {
-        var stream = new ByteArrayInputStream(data.getBytes());
-        return new Decoder(stream).decode();
     }
 
-    public static BencodeElement decode (final Path path)
+    public static Element deserialize (final byte[] data)
+    {
+        return new Deserializer(new ByteArrayInputStream(data)).decode();
+    }
+
+    public static Element deserialize (final String data)
+    {
+        return deserialize(data.getBytes());
+    }
+
+    public static Element deserialize (final Path path)
     {
         try {
-            var stream = new BufferedInputStream(Files.newInputStream(path, StandardOpenOption.READ));
-            return new Decoder(stream).decode();
+            return deserialize(Files.readAllBytes(path));
         } catch (IOException ioe) {
             throw new RuntimeException(ioe);
         }
+    }
+
+    public static byte[] serialize (final Element element)
+    {
+        return new Serializer(element).serialize();
     }
 }
