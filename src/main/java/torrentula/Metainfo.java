@@ -37,12 +37,12 @@ public class Metainfo {
             m_full_path = Paths.get(path_pieces[0], Arrays.copyOfRange(path_pieces, 1, path_pieces.length));
         }
 
-        public Path get_path ()
+        public Path path ()
         {
             return m_full_path;
         }
 
-        public long get_size ()
+        public long size ()
         {
             return m_length;
         }
@@ -72,7 +72,8 @@ public class Metainfo {
     private final Mode m_mode;
     private final List<Fileinfo> m_fileinfo_list;
 
-    private final MessageDigest m_hasher;
+    private final long m_torrent_size;
+    private final MessageDigest m_sha1;
 
     Metainfo (
             final Map<String, Element> source,
@@ -91,8 +92,13 @@ public class Metainfo {
         m_mode = mode;
         m_fileinfo_list = files;
 
+        long torrent_size = 0;
+        for (var fileinfo : files)
+            torrent_size += fileinfo.size();
+        m_torrent_size = torrent_size;
+
         try {
-            m_hasher = MessageDigest.getInstance("SHA-1");
+            m_sha1 = MessageDigest.getInstance("SHA-1");
         } catch (NoSuchAlgorithmException exc) {
             throw new  RuntimeException(exc);
         }
@@ -138,9 +144,14 @@ public class Metainfo {
         return m_fileinfo_list.size();
     }
 
-    public byte[] get_info_hash ()
+    byte[] info_hash ()
     {
-        return m_hasher.digest(m_source.get("info").serialize());
+        return m_sha1.digest(m_source.get("info").serialize());
+    }
+
+    public long torrent_size ()
+    {
+        return m_torrent_size;
     }
 
     public String to_string (int padding)
