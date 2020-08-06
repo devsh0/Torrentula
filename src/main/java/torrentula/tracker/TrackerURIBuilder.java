@@ -27,7 +27,7 @@ class TrackerURIBuilder {
         return !((c >= 'a' && c <= 'z')
                 || (c >= 'A' && c <= 'Z')
                 || (c >= '0' && c <= '9')
-                || (c == '-' || c == '_' || c == '~'));
+                || (c == '.' || c == '-' || c == '_' || c == '~'));
     }
 
     TrackerURIBuilder append_query (String key, ByteBuffer buffer)
