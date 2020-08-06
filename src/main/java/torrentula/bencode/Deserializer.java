@@ -181,7 +181,7 @@ final class Deserializer {
         }
     }
 
-    Element decode ()
+    Element deserialize ()
     {
         try {
             return parse_next_element();

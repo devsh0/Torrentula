@@ -28,7 +28,7 @@ public class Bencode {
 
     public static Element deserialize (final byte[] data)
     {
-        return new Deserializer(new ByteArrayInputStream(data)).decode();
+        return new Deserializer(new ByteArrayInputStream(data)).deserialize();
     }
 
     public static Element deserialize (final String data)
