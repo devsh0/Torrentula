@@ -53,6 +53,7 @@ final class Deserializer {
         m_stream.mark(1);
         int next = read();
         m_stream.reset();
+        m_offset--;
         return (byte) next;
     }
 
@@ -62,7 +63,7 @@ final class Deserializer {
         if (next == -1)
             die("Attempted reading beyond EOF!");
         m_offset++;
-        return (byte) next;
+        return (byte)next;
     }
 
     private boolean is_digit (final byte c)
