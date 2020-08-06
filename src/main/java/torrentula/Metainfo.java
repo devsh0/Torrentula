@@ -144,7 +144,7 @@ public class Metainfo {
         return m_fileinfo_list.size();
     }
 
-    byte[] info_hash ()
+    public byte[] info_hash ()
     {
         return m_sha1.digest(m_source.get("info").serialize());
     }
