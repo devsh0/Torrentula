@@ -22,20 +22,28 @@ class TrackerURIBuilder {
         return this;
     }
 
-    private boolean escape_required (byte c)
+    private boolean escape_required (char c)
     {
         return !((c >= 'a' && c <= 'z')
                 || (c >= 'A' && c <= 'Z')
                 || (c >= '0' && c <= '9')
-                || (c == '.' || c == '-' || c == '_' || c == '~'));
+                || (c == '.' || c == '-' || c == '_' || c == '~')
+                || (c == '(' || c == ')' || c == '!' || c == '*'));
     }
 
     TrackerURIBuilder append_query (String key, ByteBuffer buffer)
     {
-        Objects.requireNonNull(buffer, "Byte string is null!");
+        Objects.requireNonNull(buffer, "Empty buffer supplied for query value!");
         StringBuilder builder = new StringBuilder();
-        for (int i = 0; i < buffer.remaining(); i++)
-            builder.append(String.format("%%%02x", buffer.get(i)));
+        for (int i = 0; i < buffer.remaining(); i++) {
+            char ch = (char) buffer.get(i);
+            if (escape_required(ch)) {
+                builder.append("%");
+                String hex = Integer.toHexString(ch & 0xFF).toUpperCase();
+                hex = hex.length() == 1 ? "0" + hex : hex;
+                builder.append(hex);
+            } else builder.append(ch);
+        }
         append_query(key, builder.toString());
         return this;
     }
