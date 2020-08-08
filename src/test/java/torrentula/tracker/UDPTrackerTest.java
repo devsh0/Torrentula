@@ -24,8 +24,6 @@ import torrentula.client.Client;
 
 import java.nio.file.Paths;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -33,7 +31,7 @@ public class UDPTrackerTest {
     @Test
     public void test_tracker ()
     {
-        var torrent_info = Bencode.deserialize(Paths.get("kamikaze.torrent")).as_dictionary();
+        var torrent_info = Bencode.deserialize(Paths.get("tos.torrent")).as_dictionary();
         var metainfo = Metainfo.from(torrent_info);
         var client = new Client(metainfo, 1000);
         var tracker = new UDPTracker(client, metainfo.tracker_url());
@@ -41,15 +39,12 @@ public class UDPTrackerTest {
         try {
             var result = worker.scheduleWithFixedDelay(() -> {
                 if (tracker.connected())
-                    worker.shutdownNow();
+                    worker.shutdown();
             }, 0, 1, TimeUnit.SECONDS);
             final int timeout = 5;
             result.get(timeout, TimeUnit.SECONDS);
-        } catch (CancellationException exc) {
+        } catch (CancellationException | ExecutionException | InterruptedException | TimeoutException exc) {
             assertTrue(tracker.connected());
-        } catch (ExecutionException | InterruptedException | TimeoutException exc) {
-            System.err.println("Failure message: " + exc.getMessage());
-            Assertions.fail();
         } finally {
             worker.shutdownNow();
             tracker.dispose();

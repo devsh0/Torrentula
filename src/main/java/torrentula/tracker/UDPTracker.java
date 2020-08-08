@@ -21,37 +21,25 @@ import torrentula.client.Client;
 import java.io.IOException;
 import java.net.*;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
-class UDPTracker implements Tracker {
+class UDPTracker extends Tracker {
     private static final String DEFAULT_TRACKER_URL = "udp://tracker.opentrackr.org:1337/announce";
-
-    private final Object m_lock = new Object();
 
     private final DatagramSocket m_socket;
     private final SocketAddress m_tracker_address;
-    private final ExecutorService m_worker = Executors.newSingleThreadExecutor();
 
-    private TrackerState m_state = TrackerState.DISCONNECTED;
     private long m_connection_id;
 
     private final Client m_torrent_client;
 
-    private interface Callback {
-        void on_success (final DatagramPacket result);
-
-        void on_failure (final Throwable throwable);
-    }
-
-    UDPTracker (Client client, String tracker)
+    UDPTracker (Client torrent_client, String tracker)
     {
         try {
+            // FIXME: Currently we are ignoring the tracker URL found in torrents.
             var remote = URI.create(DEFAULT_TRACKER_URL);
             m_tracker_address = new InetSocketAddress(remote.getHost(), remote.getPort());
             m_socket = new DatagramSocket(new InetSocketAddress(0));
-            m_torrent_client = client;
+            m_torrent_client = torrent_client;
             connect();
         } catch (SocketException exception) {
             dispose();
@@ -61,8 +49,8 @@ class UDPTracker implements Tracker {
 
     private void kill (Throwable throwable)
     {
-        dispose();
         System.err.println(throwable.getClass().getName() + ": " + throwable.getMessage());
+        dispose();
         throw new RuntimeException(throwable);
     }
 
@@ -89,73 +77,50 @@ class UDPTracker implements Tracker {
 
     private void connect ()
     {
-            final long conn_id = 0x41727101980L;
-            final int action = 0;
-            final int tran_id = 1;
-            final var buffer = ByteBuffer.allocate(16).putLong(conn_id).putInt(action).putInt(tran_id);
-            final var packet = new DatagramPacket(buffer.array(), 0, 16, m_tracker_address);
+        final long conn_id = 0x41727101980L;
+        final int action = 0;
+        final int tran_id = 1;
+        final var buffer = ByteBuffer.allocate(16).putLong(conn_id).putInt(action).putInt(tran_id);
+        final var packet = new DatagramPacket(buffer.array(), 0, 16, m_tracker_address);
 
-            send_message(packet, new Callback() {
-                @Override
-                public void on_success (DatagramPacket result)
-                {
-                    try {
-                        final var buffer = ByteBuffer.wrap(result.getData());
-                        if (packet.getLength() < 16)
-                            kill("Response packet < 16 bytes!");
-                        if (buffer.getInt() != action)
-                            kill("Request-Response action mismatch!");
-                        if (buffer.getInt() != tran_id)
-                            kill("Request-Response transaction id mismatch!");
-                        synchronized (m_lock) {
-                            m_connection_id = buffer.getLong();
-                            System.out.println("Connection ID: " + m_connection_id);
-                            m_state = TrackerState.CONNECTED;
-                        }
-                    } catch (Exception e) {
-                        kill(e);
+        send_message(packet, new Callback() {
+            @Override
+            public void on_success (DatagramPacket result)
+            {
+                try {
+                    final var buffer = ByteBuffer.wrap(result.getData());
+                    if (packet.getLength() < 16)
+                        kill("Response packet < 16 bytes!");
+                    if (buffer.getInt() != action)
+                        kill("Request-Response action mismatch!");
+                    if (buffer.getInt() != tran_id)
+                        kill("Request-Response transaction id mismatch!");
+                    synchronized (UDPTracker.super.m_lock) {
+                        m_connection_id = buffer.getLong();
+                        System.out.println("Connection ID: " + m_connection_id);
+                        m_state = TrackerState.CONNECTED;
                     }
+                } catch (Throwable th) {
+                    kill(th);
                 }
+            }
 
-                @Override
-                public void on_failure (Throwable throwable)
-                {
-                    kill(throwable);
-                }
-            });
+            @Override
+            public void on_failure (Throwable throwable)
+            {
+                kill(throwable);
+            }
+        });
     }
 
     @Override
     public void dispose ()
     {
-        synchronized (m_lock) {
-            m_state = TrackerState.DISPOSED;
-        }
-        m_socket.close();
-        // One of its own thread may be shutting down worker.
+        // Worker's own thread may be shutting it down.
         // This is slightly abrupt in nature.
+        super.dispose();
+        m_socket.close();
         m_worker.shutdownNow();
-    }
-
-    public TrackerState state ()
-    {
-        synchronized (m_lock) {
-            return m_state;
-        }
-    }
-
-    public boolean disposed ()
-    {
-        synchronized (m_lock) {
-            return state() == TrackerState.DISPOSED;
-        }
-    }
-
-    public boolean connected ()
-    {
-        synchronized (m_lock) {
-            return state() == TrackerState.CONNECTED;
-        }
     }
 
     @Override

@@ -16,13 +16,54 @@
 
 package torrentula.tracker;
 
-public interface Tracker {
+import java.net.DatagramPacket;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+public abstract class Tracker {
+    final Object m_lock = new Object();
+    final ExecutorService m_worker = Executors.newSingleThreadExecutor();
+    TrackerState m_state = TrackerState.DISCONNECTED;
+
     enum TrackerState {
         DISCONNECTED,
         CONNECTED,
         DISPOSED,
     }
 
-    TrackerResponse announce ();
-    void dispose();
+    interface Callback {
+        void on_success (final DatagramPacket result);
+
+        void on_failure (final Throwable throwable);
+    }
+
+    abstract TrackerResponse announce ();
+
+    void dispose ()
+    {
+        synchronized (m_lock) {
+            m_state = TrackerState.DISPOSED;
+        }
+    }
+
+    TrackerState state ()
+    {
+        synchronized (m_lock) {
+            return m_state;
+        }
+    }
+
+    boolean connected ()
+    {
+        synchronized (m_lock) {
+            return state() == TrackerState.CONNECTED;
+        }
+    }
+
+    boolean disposed ()
+    {
+        synchronized (m_lock) {
+            return state() == TrackerState.DISPOSED;
+        }
+    }
 }

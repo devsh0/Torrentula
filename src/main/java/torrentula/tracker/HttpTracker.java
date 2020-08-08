@@ -23,63 +23,61 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 
-public class HttpTracker implements Tracker {
+public class HttpTracker extends Tracker {
     private static final String DEFAULT_TRACKER_URL = "http://tracker.opentrackr.org:1337/announce";
     private final HttpClient m_http;
-    private final String m_base_url;
+    private final String m_tracker_address;
     private final int m_accept_compact = 1;
     private final int m_omit_peer_id = 1;
     private final Client m_torrent_client;
+
     private String m_event;
 
-    public HttpTracker (Client torrent_client, String base_url)
+    public HttpTracker (Client torrent_client, String tracker)
     {
-        // FIXME: Try the default URL first.
-        m_base_url = DEFAULT_TRACKER_URL;
+        // FIXME: Currently we are ignoring the tracker URL found in torrents.
+        m_tracker_address = DEFAULT_TRACKER_URL;
         m_torrent_client = torrent_client;
-        m_http = HttpClient.newBuilder()
-                .followRedirects(HttpClient.Redirect.NEVER)
-                .build();
+        m_http = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER).build();
+        m_state = TrackerState.CONNECTED;
     }
 
     private HttpRequest build_request ()
     {
+        // FIXME: the string needs to change for certain events.
+        var event = m_event == null ? (m_event = "started") : "";
         var state = m_torrent_client.state();
-        var uri = new TrackerURIBuilder(m_base_url)
+
+        var uri = new TrackerURIBuilder(m_tracker_address)
                 .append_query("peer_id", m_torrent_client.id())
                 .append_query("info_hash", m_torrent_client.info_hash())
-                .append_query("port", m_torrent_client.port() + "")
-                .append_query("uploaded", state.bytes_uploaded() + "")
-                .append_query("downloaded", state.bytes_downloaded() + "")
-                .append_query("left", state.bytes_left() + "")
-                .append_query("compact", m_accept_compact + "")
-                .append_query("no_peer_id", m_omit_peer_id + "")
-                // FIXME: the string needs to change for certain events (e.g.: complete)
-                .append_query("event", m_event == null ? (m_event = "started") : "")
+                .append_query("port", m_torrent_client.port())
+                .append_query("uploaded", state.bytes_uploaded())
+                .append_query("downloaded", state.bytes_downloaded())
+                .append_query("left", state.bytes_left())
+                .append_query("compact", m_accept_compact)
+                .append_query("no_peer_id", m_omit_peer_id)
+                .append_query("event", event)
                 .build();
-        System.out.println("The URI: " + uri);
+
         return HttpRequest.newBuilder().GET().uri(uri).build();
     }
 
-    public TrackerResponse announce ()
+    private void send_message (final HttpRequest request, final Callback callback)
     {
-        try {
-            var request = build_request();
-            var response = m_http.send(request, HttpResponse.BodyHandlers.ofByteArray()).body();
-            return TrackerResponse.from(response);
-        } catch (IOException | InterruptedException exc) {
-            if (exc instanceof InterruptedException) {
-                System.err.println("Tracker request interrupted!");
-                Thread.currentThread().interrupt();
-                return null;
+        m_worker.submit(() -> {
+            try {
+                var response = m_http.send(request, HttpResponse.BodyHandlers.ofByteArray()).body();
+            } catch (IOException | InterruptedException exc) {
+                throw new RuntimeException(exc);
             }
-            throw new RuntimeException(exc);
-        }
+        });
     }
 
     @Override
-    public void dispose ()
+    public TrackerResponse announce ()
     {
-        // No action needed.
+        var request = build_request();
+        return null;
     }
 }

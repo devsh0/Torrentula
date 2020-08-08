@@ -15,9 +15,7 @@ class TrackerURIBuilder {
 
     TrackerURIBuilder append_query (String key, String value)
     {
-        if (m_prefix == null)
-            m_prefix = "?";
-        else m_prefix = "&";
+        m_prefix = m_prefix == null ? "?" : "&";
         m_uri += m_prefix + key + "=" + value;
         return this;
     }
