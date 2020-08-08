@@ -63,9 +63,9 @@ public class HttpTracker extends Tracker {
         return HttpRequest.newBuilder().GET().uri(uri).build();
     }
 
-    private void send_message (final HttpRequest request, final Callback callback)
+    private void send_message (final HttpRequest request, final RequestCallback callback)
     {
-        m_worker.submit(() -> {
+        m_executor.submit(() -> {
             try {
                 var response = m_http.send(request, HttpResponse.BodyHandlers.ofByteArray()).body();
             } catch (IOException | InterruptedException exc) {

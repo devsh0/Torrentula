@@ -59,16 +59,16 @@ class UDPTracker extends Tracker {
         kill(new RuntimeException(message));
     }
 
-    private void send_message (final DatagramPacket request_packet, final Callback callback)
+    private void send_message (final DatagramPacket packet, final RequestCallback callback)
     {
-        m_worker.submit(() -> {
+        m_executor.submit(() -> {
             try {
-                m_socket.send(request_packet);
+                m_socket.send(packet);
                 final int length = 4096;
                 byte[] response_buffer = new byte[length];
                 var response_packet = new DatagramPacket(response_buffer, length);
                 m_socket.receive(response_packet);
-                callback.on_success(response_packet);
+                callback.on_success(TrackerResponse.from(response_packet));
             } catch (IOException exception) {
                 callback.on_failure(exception);
             }
@@ -83,20 +83,20 @@ class UDPTracker extends Tracker {
         final var buffer = ByteBuffer.allocate(16).putLong(conn_id).putInt(action).putInt(tran_id);
         final var packet = new DatagramPacket(buffer.array(), 0, 16, m_tracker_address);
 
-        send_message(packet, new Callback() {
+        send_message(packet, new RequestCallback() {
             @Override
-            public void on_success (DatagramPacket result)
+            public void on_success (TrackerResponse result)
             {
                 try {
-                    final var buffer = ByteBuffer.wrap(result.getData());
-                    if (packet.getLength() < 16)
+                    final var data = result.data();
+                    if (result.length() < 16)
                         kill("Response packet < 16 bytes!");
-                    if (buffer.getInt() != action)
+                    if (data.getInt() != action)
                         kill("Request-Response action mismatch!");
-                    if (buffer.getInt() != tran_id)
+                    if (data.getInt() != tran_id)
                         kill("Request-Response transaction id mismatch!");
                     synchronized (UDPTracker.super.m_lock) {
-                        m_connection_id = buffer.getLong();
+                        m_connection_id = data.getLong();
                         System.out.println("Connection ID: " + m_connection_id);
                         m_state = TrackerState.CONNECTED;
                     }
@@ -120,7 +120,7 @@ class UDPTracker extends Tracker {
         // This is slightly abrupt in nature.
         super.dispose();
         m_socket.close();
-        m_worker.shutdownNow();
+        m_executor.shutdownNow();
     }
 
     @Override

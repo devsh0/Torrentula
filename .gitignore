@@ -2,3 +2,4 @@
 .gradle
 *.torrent
 build
+src/test/java/torrentula/TestTest.java
