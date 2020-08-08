@@ -48,6 +48,16 @@ class TrackerURIBuilder {
         return this;
     }
 
+    TrackerURIBuilder append_query (String key, long value)
+    {
+        return append_query(key, value + "");
+    }
+
+    TrackerURIBuilder append_query (String key, int value)
+    {
+        return append_query(key, value + "");
+    }
+
     URI build ()
     {
         return URI.create(m_uri);
