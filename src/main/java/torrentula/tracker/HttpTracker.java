@@ -23,7 +23,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 
-public class Tracker {
+public class HttpTracker implements Tracker {
     private static final String DEFAULT_TRACKER_URL = "http://tracker.opentrackr.org:1337/announce";
     private final HttpClient m_http;
     private final String m_base_url;
@@ -32,17 +32,17 @@ public class Tracker {
     private final Client m_torrent_client;
     private String m_event;
 
-    public Tracker (Client torrent_client, String base_url)
+    public HttpTracker (Client torrent_client, String base_url)
     {
-        // FIXME: Eventually we will have to support udp trackers.
-        m_base_url = base_url.startsWith("http") ? base_url : DEFAULT_TRACKER_URL;
+        // FIXME: Try the default URL first.
+        m_base_url = DEFAULT_TRACKER_URL;
         m_torrent_client = torrent_client;
         m_http = HttpClient.newBuilder()
                 .followRedirects(HttpClient.Redirect.NEVER)
                 .build();
     }
 
-    private HttpRequest build_http_request ()
+    private HttpRequest build_request ()
     {
         var state = m_torrent_client.state();
         var uri = new TrackerURIBuilder(m_base_url)
@@ -54,18 +54,18 @@ public class Tracker {
                 .append_query("left", state.bytes_left() + "")
                 .append_query("compact", m_accept_compact + "")
                 .append_query("no_peer_id", m_omit_peer_id + "")
-                .append_query("numwant", 30 + "")
-                .append_query("event", m_event == null ? (m_event = "started") : "") // FIXME
+                // FIXME: the string needs to change for certain events (e.g.: complete)
+                .append_query("event", m_event == null ? (m_event = "started") : "")
                 .build();
+        System.out.println("The URI: " + uri);
         return HttpRequest.newBuilder().GET().uri(uri).build();
     }
 
     public TrackerResponse announce ()
     {
         try {
-            var request = build_http_request();
-            var body_handler = HttpResponse.BodyHandlers.ofByteArray();
-            var response = m_http.send(request, body_handler).body();
+            var request = build_request();
+            var response = m_http.send(request, HttpResponse.BodyHandlers.ofByteArray()).body();
             return TrackerResponse.from(response);
         } catch (IOException | InterruptedException exc) {
             if (exc instanceof InterruptedException) {
@@ -75,5 +75,11 @@ public class Tracker {
             }
             throw new RuntimeException(exc);
         }
+    }
+
+    @Override
+    public void dispose ()
+    {
+        // No action needed.
     }
 }
