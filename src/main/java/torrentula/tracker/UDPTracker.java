@@ -17,15 +17,17 @@
 package torrentula.tracker;
 
 import torrentula.client.Client;
+import torrentula.event.Bag;
 
 import java.io.IOException;
 import java.net.*;
 import java.nio.ByteBuffer;
 
 class UDPTracker extends Tracker {
-    private static final String DEFAULT_TRACKER_URL = "udp://tracker.opentrackr.org:1337/announce";
+    private static final String TrackerUrl = "udp://tracker.opentrackr.org:1337/announce";
 
-    private final DatagramSocket m_socket;
+    private final UDPTracker m_self;
+    private DatagramSocket m_socket;
     private final SocketAddress m_tracker_address;
 
     private long m_connection_id;
@@ -34,29 +36,24 @@ class UDPTracker extends Tracker {
 
     UDPTracker (Client torrent_client, String tracker)
     {
+        // FIXME: Currently we are ignoring the tracker URL found in torrents.
+        var remote = URI.create(TrackerUrl);
+        m_self = this;
+        m_tracker_address = new InetSocketAddress(remote.getHost(), remote.getPort());
+        m_torrent_client = torrent_client;
         try {
-            // FIXME: Currently we are ignoring the tracker URL found in torrents.
-            var remote = URI.create(DEFAULT_TRACKER_URL);
-            m_tracker_address = new InetSocketAddress(remote.getHost(), remote.getPort());
             m_socket = new DatagramSocket(new InetSocketAddress(0));
-            m_torrent_client = torrent_client;
             connect();
-        } catch (SocketException exception) {
-            dispose();
-            throw new RuntimeException(exception);
+        } catch (SocketException exc) {
+            String msg = String.format("%s\n%s", exc.getClass().getName(), exc.getMessage());
+            Bag bag = Bag.initialize(TrackerEvents.Fields.Message, msg);
+            TrackerEvents.fire_connection_failed(self(), bag);
         }
     }
 
-    private void kill (Throwable throwable)
+    private UDPTracker self ()
     {
-        System.err.println(throwable.getClass().getName() + ": " + throwable.getMessage());
-        dispose();
-        throw new RuntimeException(throwable);
-    }
-
-    private void kill (String message)
-    {
-        kill(new RuntimeException(message));
+        return m_self;
     }
 
     private void send_message (final DatagramPacket packet, final RequestCallback callback)
@@ -89,26 +86,43 @@ class UDPTracker extends Tracker {
             {
                 try {
                     final var data = result.data();
-                    if (result.length() < 16)
-                        kill("Response packet < 16 bytes!");
-                    if (data.getInt() != action)
-                        kill("Request-Response action mismatch!");
-                    if (data.getInt() != tran_id)
-                        kill("Request-Response transaction id mismatch!");
-                    synchronized (UDPTracker.super.m_lock) {
-                        m_connection_id = data.getLong();
-                        System.out.println("Connection ID: " + m_connection_id);
-                        m_state = TrackerState.CONNECTED;
+                    if (result.length() < 16) {
+                        String message = "Response packet < 16 bytes!";
+                        Bag bag = Bag.initialize(TrackerEvents.Fields.Message, message);
+                        TrackerEvents.fire_connection_failed(self(), bag);
                     }
-                } catch (Throwable th) {
-                    kill(th);
+
+                    if (data.getInt() != action) {
+                        String message = "Request-Response action mismatch!";
+                        Bag bag = Bag.initialize(TrackerEvents.Fields.Message, message);
+                        TrackerEvents.fire_connection_failed(self(), bag);
+                    }
+
+                    if (data.getInt() != tran_id) {
+                        String message = "Request-Response transaction id mismatch!";
+                        Bag bag = Bag.initialize(TrackerEvents.Fields.Message, message);
+                        TrackerEvents.fire_connection_failed(self(), bag);
+                    }
+
+                    synchronized (state_transition_lock()) {
+                        m_connection_id = data.getLong();
+                        m_state = TrackerState.CONNECTED;
+                        Bag bag = Bag.initialize(TrackerEvents.Fields.ConnectionId, m_connection_id);
+                        TrackerEvents.fire_connected(self(), bag);
+                    }
+                } catch (Throwable exc) {
+                    String msg = String.format("%s\n%s", exc.getClass().getName(), exc.getMessage());
+                    Bag bag = Bag.initialize(TrackerEvents.Fields.Message, msg);
+                    TrackerEvents.fire_connection_failed(self(), bag);
                 }
             }
 
             @Override
-            public void on_failure (Throwable throwable)
+            public void on_failure (Throwable exc)
             {
-                kill(throwable);
+                String msg = String.format("%s\n%s", exc.getClass().getName(), exc.getMessage());
+                Bag bag = Bag.initialize(TrackerEvents.Fields.Message, msg);
+                TrackerEvents.fire_connection_failed(self(), bag);
             }
         });
     }
@@ -116,8 +130,6 @@ class UDPTracker extends Tracker {
     @Override
     public void dispose ()
     {
-        // Worker's own thread may be shutting it down.
-        // This is slightly abrupt in nature.
         super.dispose();
         m_socket.close();
         m_executor.shutdownNow();

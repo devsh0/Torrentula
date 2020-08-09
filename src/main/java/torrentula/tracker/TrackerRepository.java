@@ -16,7 +16,18 @@
 
 package torrentula.tracker;
 
-public class TrackerManager {
-    private static TrackerManager MAN;
+import torrentula.event.Event;
+import torrentula.event.Reactor;
 
+public class TrackerRepository implements Reactor {
+    private final static TrackerRepository s_repository = new TrackerRepository();
+
+    private TrackerRepository () {}
+
+    @Override
+    public void react (Event event)
+    {
+        Tracker emitter = event.data().take(TrackerEvents.Fields.Emitter);
+
+    }
 }

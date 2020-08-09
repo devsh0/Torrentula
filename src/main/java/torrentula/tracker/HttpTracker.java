@@ -17,14 +17,13 @@
 package torrentula.tracker;
 
 import torrentula.client.Client;
+import torrentula.event.Bag;
 
-import java.io.IOException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 
 public class HttpTracker extends Tracker {
-    private static final String DEFAULT_TRACKER_URL = "http://tracker.opentrackr.org:1337/announce";
+    private static final String TrackerUrl = "http://tracker.opentrackr.org:1337/announce";
     private final HttpClient m_http;
     private final String m_tracker_address;
     private final int m_accept_compact = 1;
@@ -36,10 +35,11 @@ public class HttpTracker extends Tracker {
     public HttpTracker (Client torrent_client, String tracker)
     {
         // FIXME: Currently we are ignoring the tracker URL found in torrents.
-        m_tracker_address = DEFAULT_TRACKER_URL;
+        m_tracker_address = TrackerUrl;
         m_torrent_client = torrent_client;
         m_http = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER).build();
         m_state = TrackerState.CONNECTED;
+        TrackerEvents.fire_connected(this, Bag.empty());
     }
 
     private HttpRequest build_request ()
@@ -63,21 +63,9 @@ public class HttpTracker extends Tracker {
         return HttpRequest.newBuilder().GET().uri(uri).build();
     }
 
-    private void send_message (final HttpRequest request, final RequestCallback callback)
-    {
-        m_executor.submit(() -> {
-            try {
-                var response = m_http.send(request, HttpResponse.BodyHandlers.ofByteArray()).body();
-            } catch (IOException | InterruptedException exc) {
-                throw new RuntimeException(exc);
-            }
-        });
-    }
-
     @Override
     public TrackerResponse announce ()
     {
-        var request = build_request();
         return null;
     }
 }

@@ -59,6 +59,10 @@ public abstract class Tracker {
         }
     }
 
+    Object state_transition_lock () {
+        return m_lock;
+    }
+
     boolean disposed ()
     {
         synchronized (m_lock) {
