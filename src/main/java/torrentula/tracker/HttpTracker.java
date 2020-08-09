@@ -17,7 +17,6 @@
 package torrentula.tracker;
 
 import torrentula.client.Client;
-import torrentula.event.Bag;
 
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -39,7 +38,7 @@ public class HttpTracker extends Tracker {
         m_torrent_client = torrent_client;
         m_http = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER).build();
         m_state = TrackerState.CONNECTED;
-        TrackerEvents.fire_connected(this, Bag.empty());
+        event_emitter().fire_connected();
     }
 
     private HttpRequest build_request ()

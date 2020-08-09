@@ -16,38 +16,49 @@
 
 package torrentula.tracker;
 
-import torrentula.event.Bag;
+import torrentula.event.EventData;
 import torrentula.event.Event;
 
-class TrackerEvents extends Event {
-    private TrackerEvents (String event_id, Tracker emitter, Bag data)
+class TrackerEventEmitter {
+    private final Tracker m_emitter;
+
+    TrackerEventEmitter (Tracker emitter)
     {
-        super(event_id, data);
-        data.put(Fields.Emitter, emitter);
+        m_emitter = emitter;
     }
 
-    static void fire_connected (Tracker emitter, Bag bag)
+    private EventData prepare_bag (EventData... data)
     {
-        new TrackerEvents(EventId.Connected, emitter, bag).fire();
+        var tmp = data == null || data.length == 0? EventData.empty() : data[0];
+        tmp.put(DataFields.Emitter, m_emitter);
+        return tmp;
     }
 
-    static void fire_connection_failed (Tracker emitter, Bag bag)
+    void fire_connected (EventData... data)
     {
-        new TrackerEvents(EventId.ConnectionFailed, emitter, bag);
+        var tmp = prepare_bag(data);
+        Event.create(EventId.Connected, tmp).fire();
     }
 
-    static void fire_announce_failed (Tracker emitter, Bag bag)
+    void fire_connection_failed (EventData... data)
     {
-        new TrackerEvents(EventId.AnnounceFailed, emitter, bag);
+        var tmp = prepare_bag(data);
+        Event.create(EventId.ConnectionFailed, tmp).fire();
     }
 
-    static void fire_disconnected (Tracker emitter, String... msg)
+    void fire_announce_failed (EventData... data)
     {
-        String message = (msg == null || msg.length == 0) ? "" : msg[0];
-        new TrackerEvents(EventId.Disconnected, emitter, Bag.initialize(Fields.Message, message));
+        var tmp = prepare_bag(data);
+        Event.create(EventId.AnnounceFailed, tmp).fire();
     }
 
-    interface Fields {
+    void fire_disconnected (EventData... data)
+    {
+        var tmp = prepare_bag(data);
+        Event.create(EventId.Disconnected, tmp).fire();
+    }
+
+    interface DataFields {
         static final String Emitter = "$_emitter";
         static final String Message = "$_message";
         static final String ConnectionId = "$_connection_id";

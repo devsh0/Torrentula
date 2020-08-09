@@ -20,15 +20,15 @@ import java.util.HashMap;
 import java.util.Map;
 
 @SuppressWarnings("unchecked")
-public class Bag {
+public class EventData {
     private final Object m_data_traversal_lock = new Object();
     private final Map<String, Object> m_container = new HashMap<>();
 
-    private Bag ()
+    private EventData ()
     {
     }
 
-    public <T> Bag put (String key, T value)
+    public <T> EventData put (String key, T value)
     {
         synchronized (m_data_traversal_lock) {
             m_container.put(key, value);
@@ -64,12 +64,12 @@ public class Bag {
         }
     }
 
-    public static Bag empty ()
+    public static EventData empty ()
     {
-        return new Bag();
+        return new EventData();
     }
 
-    public static <T> Bag initialize (String key, T value)
+    public static <T> EventData initialize (String key, T value)
     {
         return empty().put(key, value);
     }

@@ -16,44 +16,34 @@
 
 package torrentula.tracker;
 
-import torrentula.client.Client;
-import torrentula.event.Bag;
+import torrentula.event.EventData;
 
-import java.io.IOException;
+import static torrentula.tracker.TrackerEventEmitter.DataFields;
+
 import java.net.*;
 import java.nio.ByteBuffer;
 
 class UDPTracker extends Tracker {
     private static final String TrackerUrl = "udp://tracker.opentrackr.org:1337/announce";
 
-    private final UDPTracker m_self;
     private DatagramSocket m_socket;
     private final SocketAddress m_tracker_address;
+    private final int m_socket_timeout = 15000; // Milliseconds.
 
-    private long m_connection_id;
-
-    private final Client m_torrent_client;
-
-    UDPTracker (Client torrent_client, String tracker)
+    UDPTracker (String tracker)
     {
         // FIXME: Currently we are ignoring the tracker URL found in torrents.
         var remote = URI.create(TrackerUrl);
-        m_self = this;
         m_tracker_address = new InetSocketAddress(remote.getHost(), remote.getPort());
-        m_torrent_client = torrent_client;
         try {
             m_socket = new DatagramSocket(new InetSocketAddress(0));
+            m_socket.setSoTimeout(m_socket_timeout);
             connect();
         } catch (SocketException exc) {
             String msg = String.format("%s\n%s", exc.getClass().getName(), exc.getMessage());
-            Bag bag = Bag.initialize(TrackerEvents.Fields.Message, msg);
-            TrackerEvents.fire_connection_failed(self(), bag);
+            EventData data = EventData.initialize(DataFields.Message, msg);
+            event_emitter().fire_connection_failed(data);
         }
-    }
-
-    private UDPTracker self ()
-    {
-        return m_self;
     }
 
     private void send_message (final DatagramPacket packet, final RequestCallback callback)
@@ -66,8 +56,8 @@ class UDPTracker extends Tracker {
                 var response_packet = new DatagramPacket(response_buffer, length);
                 m_socket.receive(response_packet);
                 callback.on_success(TrackerResponse.from(response_packet));
-            } catch (IOException exception) {
-                callback.on_failure(exception);
+            } catch (Throwable th) {
+                callback.on_failure(th);
             }
         });
     }
@@ -88,32 +78,32 @@ class UDPTracker extends Tracker {
                     final var data = result.data();
                     if (result.length() < 16) {
                         String message = "Response packet < 16 bytes!";
-                        Bag bag = Bag.initialize(TrackerEvents.Fields.Message, message);
-                        TrackerEvents.fire_connection_failed(self(), bag);
+                        EventData event_data = EventData.initialize(DataFields.Message, message);
+                        event_emitter().fire_connection_failed(event_data);
                     }
 
                     if (data.getInt() != action) {
                         String message = "Request-Response action mismatch!";
-                        Bag bag = Bag.initialize(TrackerEvents.Fields.Message, message);
-                        TrackerEvents.fire_connection_failed(self(), bag);
+                        EventData event_data = EventData.initialize(DataFields.Message, message);
+                        event_emitter().fire_connection_failed(event_data);
                     }
 
                     if (data.getInt() != tran_id) {
                         String message = "Request-Response transaction id mismatch!";
-                        Bag bag = Bag.initialize(TrackerEvents.Fields.Message, message);
-                        TrackerEvents.fire_connection_failed(self(), bag);
+                        EventData event_data = EventData.initialize(DataFields.Message, message);
+                        event_emitter().fire_connection_failed(event_data);
                     }
 
-                    synchronized (state_transition_lock()) {
-                        m_connection_id = data.getLong();
+                    synchronized (state_lock()) {
+                        var connection_id = data.getLong();
                         m_state = TrackerState.CONNECTED;
-                        Bag bag = Bag.initialize(TrackerEvents.Fields.ConnectionId, m_connection_id);
-                        TrackerEvents.fire_connected(self(), bag);
+                        var event_data = EventData.initialize(DataFields.ConnectionId, connection_id);
+                        event_emitter().fire_connected(event_data);
                     }
                 } catch (Throwable exc) {
                     String msg = String.format("%s\n%s", exc.getClass().getName(), exc.getMessage());
-                    Bag bag = Bag.initialize(TrackerEvents.Fields.Message, msg);
-                    TrackerEvents.fire_connection_failed(self(), bag);
+                    EventData data = EventData.initialize(DataFields.Message, msg);
+                    event_emitter().fire_connection_failed(data);
                 }
             }
 
@@ -121,8 +111,8 @@ class UDPTracker extends Tracker {
             public void on_failure (Throwable exc)
             {
                 String msg = String.format("%s\n%s", exc.getClass().getName(), exc.getMessage());
-                Bag bag = Bag.initialize(TrackerEvents.Fields.Message, msg);
-                TrackerEvents.fire_connection_failed(self(), bag);
+                EventData data = EventData.initialize(DataFields.Message, msg);
+                event_emitter().fire_connection_failed(data);
             }
         });
     }
@@ -132,7 +122,6 @@ class UDPTracker extends Tracker {
     {
         super.dispose();
         m_socket.close();
-        m_executor.shutdownNow();
     }
 
     @Override

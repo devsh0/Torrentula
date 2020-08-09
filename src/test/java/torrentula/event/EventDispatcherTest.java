@@ -18,13 +18,8 @@ package torrentula.event;
 
 import org.junit.jupiter.api.Test;
 
-import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.TimeUnit;
-
-import static org.junit.jupiter.api.Assertions.*;
-
 public class EventDispatcherTest {
-    static class SimpleReactor implements Reactor {
+    static class SimpleEventListener implements EventListener {
         private volatile boolean message_received = false;
 
         @Override
@@ -41,7 +36,7 @@ public class EventDispatcherTest {
     @Test
     void test_event_hooks () throws InterruptedException
     {
-        var event = Event.create("test", Bag.initialize("message", "hello there!"));
-        var reactor = new SimpleReactor();
+        var event = Event.create("test", EventData.initialize("message", "hello there!"));
+        var reactor = new SimpleEventListener();
     }
 }

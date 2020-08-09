@@ -20,14 +20,14 @@ import java.util.Objects;
 
 public class Event {
     private final String m_id;
-    private final Bag m_bag;
+    private final EventData m_event_data;
 
-    protected Event (String id, Bag data)
+    protected Event (String id, EventData data)
     {
         Objects.requireNonNull(id, "Key may not be empty!");
-        data = data == null ? Bag.empty() : data;
+        data = data == null ? EventData.empty() : data;
         m_id = id;
-        m_bag = data;
+        m_event_data = data;
     }
 
     public String id ()
@@ -35,9 +35,9 @@ public class Event {
         return m_id;
     }
 
-    public Bag data ()
+    public EventData data ()
     {
-        return m_bag;
+        return m_event_data;
     }
 
     @Override
@@ -56,9 +56,9 @@ public class Event {
         return m_id.hashCode();
     }
 
-    public static Event create (String id, Bag bag)
+    public static Event create (String id, EventData data)
     {
-        return new Event(id, bag);
+        return new Event(id, data);
     }
 
     public void fire ()

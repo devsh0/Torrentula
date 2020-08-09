@@ -24,6 +24,8 @@ public abstract class Tracker {
     final ExecutorService m_executor = Executors.newSingleThreadExecutor();
     TrackerState m_state = TrackerState.DISCONNECTED;
 
+    private final TrackerEventEmitter m_emitter = new TrackerEventEmitter(this);
+
     enum TrackerState {
         DISCONNECTED,
         CONNECTED,
@@ -38,28 +40,35 @@ public abstract class Tracker {
 
     abstract TrackerResponse announce ();
 
+    TrackerEventEmitter event_emitter ()
+    {
+        return m_emitter;
+    }
+
     void dispose ()
     {
-        synchronized (m_lock) {
+        m_executor.shutdownNow();
+        synchronized (state_lock()) {
             m_state = TrackerState.DISPOSED;
         }
     }
 
     TrackerState state ()
     {
-        synchronized (m_lock) {
+        synchronized (state_lock()) {
             return m_state;
         }
     }
 
     boolean connected ()
     {
-        synchronized (m_lock) {
+        synchronized (state_lock()) {
             return state() == TrackerState.CONNECTED;
         }
     }
 
-    Object state_transition_lock () {
+    Object state_lock ()
+    {
         return m_lock;
     }
 

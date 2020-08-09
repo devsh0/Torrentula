@@ -16,6 +16,6 @@
 
 package torrentula.event;
 
-public interface Reactor {
+public interface EventListener {
     void react (Event event);
 }

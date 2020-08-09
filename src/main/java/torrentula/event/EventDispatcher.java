@@ -24,82 +24,82 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public abstract class EventDispatcher {
-    private static final Object s_reactor_traversal_lock = new Object();
+    private static final Object s_listener_traversal_lock = new Object();
     private static final ExecutorService s_dispatcher_service = Executors.newSingleThreadExecutor();
-    private static Map<Event, List<Reactor>> s_reactors = new HashMap<>();
+    private static Map<Event, List<EventListener>> s_listeners = new HashMap<>();
 
     static void dispatch (Event event)
     {
         // Exceptions will be caught by the executor. Worker thread won't die.
         s_dispatcher_service.submit(() -> {
-            var reactors = get_reactors(event);
-            if (reactors == null) return;
-            for (var reactor : reactors)
-                reactor.react(event);
+            var listeners = get_listeners(event);
+            if (listeners == null) return;
+            for (var listener : listeners)
+                listener.react(event);
         });
     }
 
-    private static List<Reactor> get_reactors (Event event)
+    private static List<EventListener> get_listeners (Event event)
     {
-        synchronized (s_reactor_traversal_lock) {
-            return s_reactors.get(event);
+        synchronized (s_listener_traversal_lock) {
+            return s_listeners.get(event);
         }
     }
 
-    private static void clear_reactors ()
+    private static void clear_listeners ()
     {
-        synchronized (s_reactor_traversal_lock) {
-            s_reactors.clear();
-            s_reactors = null;
+        synchronized (s_listener_traversal_lock) {
+            s_listeners.clear();
+            s_listeners = null;
         }
     }
 
     public static void shutdown_immediately ()
     {
-        clear_reactors();
+        clear_listeners();
         s_dispatcher_service.shutdownNow();
     }
 
     public static void shutdown ()
     {
-        clear_reactors();
+        clear_listeners();
         s_dispatcher_service.shutdown();
     }
 
-    static void add_reactor (Event event, Reactor reactor)
+    static void add_listener (Event event, EventListener listener)
     {
-        synchronized (s_reactor_traversal_lock) {
-            var existing_reactors = get_reactors(event);
-            if (existing_reactors == null) {
-                var list = new ArrayList<Reactor>();
-                list.add(reactor);
-                s_reactors.put(event, list);
+        synchronized (s_listener_traversal_lock) {
+            var existing_listeners = get_listeners(event);
+            if (existing_listeners == null) {
+                var list = new ArrayList<EventListener>();
+                list.add(listener);
+                s_listeners.put(event, list);
                 return;
             }
-            existing_reactors.add(reactor);
+            existing_listeners.add(listener);
         }
     }
 
-    static void remove_reactor (Event event, Reactor reactor)
+    static void remove_listener (Event event, EventListener listener)
     {
-        synchronized (s_reactor_traversal_lock) {
-            var reactors = get_reactors(event);
-            reactors.removeIf(r -> r == reactor);
+        synchronized (s_listener_traversal_lock) {
+            var listeners = get_listeners(event);
+            listeners.removeIf(r -> r == listener);
         }
     }
 
-    static void remove_all_reactors (Event event)
+    static void remove_listeners_listening_to (Event event)
     {
-        synchronized (s_reactor_traversal_lock) {
-            s_reactors.remove(event);
+        synchronized (s_listener_traversal_lock) {
+            s_listeners.remove(event);
         }
     }
 
-    static void remove_reactors_of_type (Event event, Class<? extends Reactor> klass)
+    static void remove_listeners_of_type (Event event, Class<? extends EventListener> klass)
     {
-        synchronized (s_reactor_traversal_lock) {
-            var reactors = get_reactors(event);
-            reactors.removeIf(r -> r.getClass().equals(klass));
+        synchronized (s_listener_traversal_lock) {
+            var listeners = get_listeners(event);
+            listeners.removeIf(r -> r.getClass().equals(klass));
         }
     }
 }
