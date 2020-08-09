@@ -22,8 +22,10 @@ public class Event {
     private final String m_id;
     private final Bag m_bag;
 
-    private Event (String id, Bag data)
+    protected Event (String id, Bag data)
     {
+        Objects.requireNonNull(id, "Key may not be empty!");
+        data = data == null ? Bag.empty() : data;
         m_id = id;
         m_bag = data;
     }
@@ -54,30 +56,9 @@ public class Event {
         return m_id.hashCode();
     }
 
-    public static Event create (String id, Bag bag) {
-        Objects.requireNonNull(id, "Key may not be empty!");
-        bag = bag == null ? Bag.empty() : bag;
+    public static Event create (String id, Bag bag)
+    {
         return new Event(id, bag);
-    }
-
-    public void add_reactor (Reactor reactor)
-    {
-        EventDispatcher.add_reactor(this, reactor);
-    }
-
-    public void remove_reactor (Reactor reactor)
-    {
-        EventDispatcher.remove_reactor(this, reactor);
-    }
-
-    public void remove_all_reactors ()
-    {
-        EventDispatcher.remove_all_reactors(this);
-    }
-
-    public void remove_reactors_of_type (Class<? extends Reactor> klass)
-    {
-        EventDispatcher.remove_reactors_of_type(this, klass);
     }
 
     public void fire ()

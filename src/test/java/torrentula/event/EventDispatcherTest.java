@@ -43,21 +43,5 @@ public class EventDispatcherTest {
     {
         var event = Event.create("test", Bag.initialize("message", "hello there!"));
         var reactor = new SimpleReactor();
-
-        assertFalse(reactor.message_received);
-        event.add_reactor(reactor);
-        event.fire();
-        TimeUnit.MICROSECONDS.sleep(100);
-        assertTrue(reactor.message_received);
-
-        reactor.message_received = false;
-        assertFalse(reactor.message_received);
-        event.remove_reactor(reactor);
-        event.fire();
-        TimeUnit.MICROSECONDS.sleep(100);
-        assertFalse(reactor.message_received);
-
-        EventDispatcher.shutdown();
-        assertThrows(RejectedExecutionException.class, event::fire);
     }
 }
