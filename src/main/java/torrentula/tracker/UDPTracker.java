@@ -80,18 +80,21 @@ class UDPTracker extends Tracker {
                         String message = "Response packet < 16 bytes!";
                         EventData event_data = EventData.initialize(DataFields.Message, message);
                         event_emitter().fire_connection_failed(event_data);
+                        return;
                     }
 
                     if (data.getInt() != action) {
                         String message = "Request-Response action mismatch!";
                         EventData event_data = EventData.initialize(DataFields.Message, message);
                         event_emitter().fire_connection_failed(event_data);
+                        return;
                     }
 
                     if (data.getInt() != tran_id) {
                         String message = "Request-Response transaction id mismatch!";
                         EventData event_data = EventData.initialize(DataFields.Message, message);
                         event_emitter().fire_connection_failed(event_data);
+                        return;
                     }
 
                     synchronized (state_lock()) {
