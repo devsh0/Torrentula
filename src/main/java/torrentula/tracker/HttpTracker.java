@@ -25,32 +25,27 @@ public class HttpTracker extends Tracker {
     private static final String TrackerUrl = "http://tracker.opentrackr.org:1337/announce";
     private final HttpClient m_http;
     private final String m_tracker_address;
-    private final int m_accept_compact = 1;
-    private final int m_omit_peer_id = 1;
-    private final Client m_torrent_client;
 
-    private String m_event;
-
-    public HttpTracker (Client torrent_client, String tracker)
+    public HttpTracker (String tracker)
     {
         // FIXME: Currently we are ignoring the tracker URL found in torrents.
         m_tracker_address = TrackerUrl;
-        m_torrent_client = torrent_client;
         m_http = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER).build();
-        m_state = TrackerState.CONNECTED;
         event_emitter().fire_connected();
     }
 
-    private HttpRequest build_request ()
+    private HttpRequest build_request (Client torrent_client)
     {
-        // FIXME: the string needs to change for certain events.
-        var event = m_event == null ? (m_event = "started") : "";
-        var state = m_torrent_client.state();
+        // FIXME: This is temporary.
+        var event = "started";
+        var state = torrent_client.state();
+        int m_accept_compact = 1;
+        int m_omit_peer_id = 1;
 
         var uri = new TrackerURIBuilder(m_tracker_address)
-                .append_query("peer_id", m_torrent_client.id())
-                .append_query("info_hash", m_torrent_client.info_hash())
-                .append_query("port", m_torrent_client.port())
+                .append_query("peer_id", torrent_client.id())
+                .append_query("info_hash", torrent_client.info_hash())
+                .append_query("port", torrent_client.port())
                 .append_query("uploaded", state.bytes_uploaded())
                 .append_query("downloaded", state.bytes_downloaded())
                 .append_query("left", state.bytes_left())
@@ -60,11 +55,5 @@ public class HttpTracker extends Tracker {
                 .build();
 
         return HttpRequest.newBuilder().GET().uri(uri).build();
-    }
-
-    @Override
-    public TrackerResponse announce ()
-    {
-        return null;
     }
 }

@@ -20,25 +20,15 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public abstract class Tracker {
-    final Object m_lock = new Object();
     final ExecutorService m_executor = Executors.newSingleThreadExecutor();
-    TrackerState m_state = TrackerState.DISCONNECTED;
 
     private final TrackerEventEmitter m_emitter = new TrackerEventEmitter(this);
-
-    enum TrackerState {
-        DISCONNECTED,
-        CONNECTED,
-        DISPOSED,
-    }
 
     interface RequestCallback {
         void on_success (final TrackerResponse result);
 
         void on_failure (final Throwable throwable);
     }
-
-    abstract TrackerResponse announce ();
 
     TrackerEventEmitter event_emitter ()
     {
@@ -48,34 +38,5 @@ public abstract class Tracker {
     void dispose ()
     {
         m_executor.shutdownNow();
-        synchronized (state_lock()) {
-            m_state = TrackerState.DISPOSED;
-        }
-    }
-
-    TrackerState state ()
-    {
-        synchronized (state_lock()) {
-            return m_state;
-        }
-    }
-
-    boolean connected ()
-    {
-        synchronized (state_lock()) {
-            return state() == TrackerState.CONNECTED;
-        }
-    }
-
-    Object state_lock ()
-    {
-        return m_lock;
-    }
-
-    boolean disposed ()
-    {
-        synchronized (m_lock) {
-            return state() == TrackerState.DISPOSED;
-        }
     }
 }

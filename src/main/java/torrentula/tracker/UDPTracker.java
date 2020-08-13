@@ -97,12 +97,9 @@ class UDPTracker extends Tracker {
                         return;
                     }
 
-                    synchronized (state_lock()) {
-                        var connection_id = data.getLong();
-                        m_state = TrackerState.CONNECTED;
-                        var event_data = EventData.initialize(DataFields.ConnectionId, connection_id);
-                        event_emitter().fire_connected(event_data);
-                    }
+                    var connection_id = data.getLong();
+                    var event_data = EventData.initialize(DataFields.ConnectionId, connection_id);
+                    event_emitter().fire_connected(event_data);
                 } catch (Throwable exc) {
                     String msg = String.format("%s\n%s", exc.getClass().getName(), exc.getMessage());
                     EventData data = EventData.initialize(DataFields.Message, msg);
@@ -125,11 +122,5 @@ class UDPTracker extends Tracker {
     {
         super.dispose();
         m_socket.close();
-    }
-
-    @Override
-    public TrackerResponse announce ()
-    {
-        return null;
     }
 }
