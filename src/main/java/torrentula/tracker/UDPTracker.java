@@ -20,8 +20,10 @@ import torrentula.event.EventData;
 
 import static torrentula.tracker.TrackerEventEmitter.DataFields;
 
+import java.io.IOException;
 import java.net.*;
 import java.nio.ByteBuffer;
+import java.util.List;
 
 class UDPTracker extends Tracker {
     private static final String TrackerUrl = "udp://tracker.opentrackr.org:1337/announce";
@@ -62,7 +64,7 @@ class UDPTracker extends Tracker {
         });
     }
 
-    private void connect ()
+    public void connect ()
     {
         final long conn_id = 0x41727101980L;
         final int action = 0;
@@ -115,6 +117,12 @@ class UDPTracker extends Tracker {
                 event_emitter().fire_connection_failed(data);
             }
         });
+    }
+
+    @Override
+    public List<PeerAddress> request_peers () throws InterruptedException, IOException
+    {
+        return null;
     }
 
     @Override

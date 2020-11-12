@@ -23,7 +23,7 @@ import java.util.Map;
 
 @SuppressWarnings("unchecked")
 public class Element {
-    enum Type {
+    public enum Type {
         UNKNOWN,
         INTEGER,
         LIST,

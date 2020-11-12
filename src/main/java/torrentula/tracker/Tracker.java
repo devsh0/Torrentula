@@ -16,6 +16,9 @@
 
 package torrentula.tracker;
 
+import java.io.IOException;
+import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -34,6 +37,8 @@ public abstract class Tracker {
     {
         return m_emitter;
     }
+
+    public abstract List<PeerAddress> request_peers () throws InterruptedException, IOException;
 
     void dispose ()
     {

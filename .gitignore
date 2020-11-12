@@ -1,5 +1,7 @@
 .idea
 .gradle
-*.torrent
+gradlew
+gradlew.bat
 build
+gradle
 src/test/java/torrentula/TestTest.java

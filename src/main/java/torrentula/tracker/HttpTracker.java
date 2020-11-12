@@ -16,36 +16,44 @@
 
 package torrentula.tracker;
 
+import torrentula.bencode.Bencode;
+import torrentula.bencode.Element;
 import torrentula.client.Client;
 
+import java.io.IOException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.util.List;
+import java.util.Map;
 
-public class HttpTracker extends Tracker {
-    private static final String TrackerUrl = "http://tracker.opentrackr.org:1337/announce";
+public class HttpTracker extends Tracker
+{
+    private static final String TRACKER_URL = "https://tracker.imgoingto.icu:443/announce";
     private final HttpClient m_http;
     private final String m_tracker_address;
+    private final Client m_client;
 
-    public HttpTracker (String tracker)
+    public HttpTracker (Client client, String tracker)
     {
         // FIXME: Currently we are ignoring the tracker URL found in torrents.
-        m_tracker_address = TrackerUrl;
+        m_tracker_address = tracker;
         m_http = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER).build();
-        event_emitter().fire_connected();
+        m_client = client;
     }
 
-    private HttpRequest build_request (Client torrent_client)
+    private HttpRequest build_request ()
     {
         // FIXME: This is temporary.
         var event = "started";
-        var state = torrent_client.state();
+        var state = m_client.state();
         int m_accept_compact = 1;
         int m_omit_peer_id = 1;
 
         var uri = new TrackerURIBuilder(m_tracker_address)
-                .append_query("peer_id", torrent_client.id())
-                .append_query("info_hash", torrent_client.info_hash())
-                .append_query("port", torrent_client.port())
+                .append_query("peer_id", m_client.id())
+                .append_query("info_hash", m_client.info_hash())
+                .append_query("port", m_client.port())
                 .append_query("uploaded", state.bytes_uploaded())
                 .append_query("downloaded", state.bytes_downloaded())
                 .append_query("left", state.bytes_left())
@@ -53,7 +61,21 @@ public class HttpTracker extends Tracker {
                 .append_query("no_peer_id", m_omit_peer_id)
                 .append_query("event", event)
                 .build();
-
         return HttpRequest.newBuilder().GET().uri(uri).build();
+    }
+
+
+    @Override
+    public List<PeerAddress> request_peers () throws  InterruptedException, IOException
+    {
+        HttpRequest request = build_request();
+        byte[] response = m_http.send(request, HttpResponse.BodyHandlers.ofByteArray()).body();
+        Map<String, Element> peer_info = Bencode.deserialize(response).as_dictionary();
+        Element peers = peer_info.get("peers");
+        if (peers.type() == Element.Type.BYTE_STRING)
+            return PeerAddress.from(peers.as_byte_string());
+        if (peers.type() == Element.Type.LIST)
+            return PeerAddress.from(peers.as_list());
+        throw new RuntimeException("The 'peers' key contains data in invalid form!");
     }
 }
