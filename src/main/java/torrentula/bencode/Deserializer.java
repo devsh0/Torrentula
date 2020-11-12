@@ -37,11 +37,15 @@ final class Deserializer {
     {
         try {
             var builder = new StringBuilder();
-            var limit = Math.max(m_stream.available(), 20);
-            for (int i = 0; i < limit; i++)
-                builder.append(read());
-            final var vicinity = builder.toString();
-            System.err.println("Failed before reaching: " + vicinity);
+            var available = m_stream.available();
+            if (available > 0)
+            {
+                var limit = Math.max(available, 20);
+                for (int i = 0; i < limit; i++)
+                    builder.append(read());
+                final var vicinity = builder.toString();
+                System.err.println("Failed before reaching: " + vicinity);
+            }
             throw new RuntimeException(message);
         } catch (IOException ioe) {
             // ignore
